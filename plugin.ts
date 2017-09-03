@@ -4,8 +4,8 @@ import { Component, ConverterComponent } from "typedoc/dist/lib/converter/compon
 import { Converter } from "typedoc/dist/lib/converter/converter";
 import { Context } from "typedoc/dist/lib/converter/context";
 import { CommentPlugin } from "typedoc/dist/lib/converter/plugins/CommentPlugin";
-import { getRawComment } from "typedoc/dist/lib/converter/factories/comment";
 import { Options, OptionsReadMode } from "typedoc/dist/lib/utils/options";
+import getRawComment from "./getRawComment";
 
 /**
  * This plugin allows you to specify if a symbol is internal or external.
