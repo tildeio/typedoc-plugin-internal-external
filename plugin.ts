@@ -28,35 +28,12 @@ import getRawComment from "./getRawComment";
 @Component({name:'internal-external'})
 export class InternalExternalPlugin extends ConverterComponent
 {
-  externals: string[];
-  internals: string[];
-
-  externalRegex: RegExp;
-  internalRegex: RegExp;
-
   initialize() {
-    var options: Options = this.application.options;
-    options.read({}, OptionsReadMode.Prefetch);
-
-    this.externals = (options.getValue('external-aliases') || "external").split(",");
-    this.internals = (options.getValue('internal-aliases') || "internal").split(",");
-
-    this.externalRegex = new RegExp(`@(${this.externals.join('|')})\\b`);
-    this.internalRegex = new RegExp(`@(${this.internals.join('|')})\\b`);
-
     this.listenTo(this.owner, {
       [Converter.EVENT_CREATE_SIGNATURE]:     this.onSignature,
       [Converter.EVENT_CREATE_DECLARATION]:   this.onDeclaration,
       [Converter.EVENT_FILE_BEGIN]:           this.onFileBegin,
     });
-  }
-
-  private static markSignatureAndMethod(reflection: Reflection, external: boolean) {
-    reflection.flags.isExternal = external;
-    // if (reflection.parent && (reflection.parent.kind === ReflectionKind.Method || reflection.parent.kind === ReflectionKind.Function) {
-    if (reflection.parent && (reflection.parent.kind & ReflectionKind.FunctionOrMethod)) {
-      reflection.parent.flags.isExternal = external;
-    }
   }
 
   /**
@@ -67,20 +44,14 @@ export class InternalExternalPlugin extends ConverterComponent
    * @param node  The node that is currently processed if available.
    */
   private onSignature(context: Context, reflection: Reflection, node?) {
-    if (!reflection.comment) return;
-
-    // Look for @internal or @external
-    let comment = reflection.comment;
-
-
-    if (this.internals.some(tag => comment.hasTag(tag))) {
-      InternalExternalPlugin.markSignatureAndMethod(reflection, false)
-    } else if (this.externals.some(tag => comment.hasTag(tag))) {
-      InternalExternalPlugin.markSignatureAndMethod(reflection, true)
+    if (reflection.name === 'fooBarBaz') {
+      reflection.flags.isExternal = false;
+      reflection.parent.flags.isExternal = false;
+      console.log("===== ON SIGNATURE =====");
+      console.log(reflection.parent.toObject());
+      // console.log(reflection.toStringHierarchy(), reflection.comment && reflection.comment.toObject(), reflection.parent.comment && reflection.parent.comment.toObject());
     }
-
-    this.internals.forEach(tag => CommentPlugin.removeTags(comment, tag));
-    this.externals.forEach(tag => CommentPlugin.removeTags(comment, tag));
+    // markSignatureAndMethod(reflection, isExternal(reflection.comment));
   }
 
   /**
@@ -91,19 +62,7 @@ export class InternalExternalPlugin extends ConverterComponent
    * @param node  The node that is currently processed if available.
    */
   private onDeclaration(context: Context, reflection: Reflection, node?) {
-    if (!reflection.comment) return;
-
-    // Look for @internal or @external
-    let comment = reflection.comment;
-
-    if (this.internals.some(tag => comment.hasTag(tag))) {
-      reflection.flags.isExternal = false;
-    } else if (this.externals.some(tag => comment.hasTag(tag))) {
-      reflection.flags.isExternal = true;
-    }
-
-    this.internals.forEach(tag => CommentPlugin.removeTags(comment, tag));
-    this.externals.forEach(tag => CommentPlugin.removeTags(comment, tag));
+    reflection.flags.isExternal = isExternal(reflection.comment);
   }
 
   /**
@@ -122,17 +81,29 @@ export class InternalExternalPlugin extends ConverterComponent
    * @param node  The node that is currently processed if available.
    */
   private onFileBegin(context: Context, reflection: Reflection, node?) {
-    if (!node) return;
+    context.isExternal = isExternal(node && getRawComment(node))
+  }
+}
 
-    // Look for @internal or @external
-    let comment = getRawComment(node);
-    let internalMatch = this.internalRegex.exec(comment);
-    let externalMatch = this.externalRegex.exec(comment);
+type Comment = string | Reflection['comment'] | undefined;
 
-    if (internalMatch) {
-      context.isExternal = false;
-    } else if (externalMatch) {
-      context.isExternal = true;
-    }
+function isExternal(comment: Comment): boolean {
+  if (typeof comment === 'string') {
+    return comment.indexOf('@api public') === -1;
+  } else if (comment && comment.hasTag('api')) {
+    let { text } = comment.getTag('api');
+    CommentPlugin.removeTags(comment, 'api');
+    return text.trim() !== 'public';
+  }
+
+  return true;
+}
+
+function markSignatureAndMethod(reflection: Reflection, external: boolean) {
+  reflection.flags.isExternal = external;
+  // if (reflection.parent && (reflection.parent.kind === ReflectionKind.Method || reflection.parent.kind === ReflectionKind.Function) {
+  if (reflection.parent && (reflection.parent.kind & ReflectionKind.FunctionOrMethod)) {
+    if (reflection.parent.flags.isExternal === false) return;
+    reflection.parent.flags.isExternal = external;
   }
 }

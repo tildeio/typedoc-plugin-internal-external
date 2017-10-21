@@ -20,7 +20,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
         if (v !== undefined) module.exports = v;
     }
     else if (typeof define === "function" && define.amd) {
-        define(["require", "exports", "typedoc/dist/lib/models/reflections", "typedoc/dist/lib/converter/components", "typedoc/dist/lib/converter/converter", "typedoc/dist/lib/converter/plugins/CommentPlugin", "typedoc/dist/lib/utils/options", "./getRawComment"], factory);
+        define(["require", "exports", "typedoc/dist/lib/models/reflections", "typedoc/dist/lib/converter/components", "typedoc/dist/lib/converter/converter", "typedoc/dist/lib/converter/plugins/CommentPlugin", "./getRawComment"], factory);
     }
 })(function (require, exports) {
     "use strict";
@@ -29,7 +29,6 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     var components_1 = require("typedoc/dist/lib/converter/components");
     var converter_1 = require("typedoc/dist/lib/converter/converter");
     var CommentPlugin_1 = require("typedoc/dist/lib/converter/plugins/CommentPlugin");
-    var options_1 = require("typedoc/dist/lib/utils/options");
     var getRawComment_1 = require("./getRawComment");
     /**
      * This plugin allows you to specify if a symbol is internal or external.
@@ -54,27 +53,13 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
         function InternalExternalPlugin() {
             return _super !== null && _super.apply(this, arguments) || this;
         }
-        InternalExternalPlugin_1 = InternalExternalPlugin;
         InternalExternalPlugin.prototype.initialize = function () {
-            var options = this.application.options;
-            options.read({}, options_1.OptionsReadMode.Prefetch);
-            this.externals = (options.getValue('external-aliases') || "external").split(",");
-            this.internals = (options.getValue('internal-aliases') || "internal").split(",");
-            this.externalRegex = new RegExp("@(" + this.externals.join('|') + ")\\b");
-            this.internalRegex = new RegExp("@(" + this.internals.join('|') + ")\\b");
             this.listenTo(this.owner, (_a = {},
                 _a[converter_1.Converter.EVENT_CREATE_SIGNATURE] = this.onSignature,
                 _a[converter_1.Converter.EVENT_CREATE_DECLARATION] = this.onDeclaration,
                 _a[converter_1.Converter.EVENT_FILE_BEGIN] = this.onFileBegin,
                 _a));
             var _a;
-        };
-        InternalExternalPlugin.markSignatureAndMethod = function (reflection, external) {
-            reflection.flags.isExternal = external;
-            // if (reflection.parent && (reflection.parent.kind === ReflectionKind.Method || reflection.parent.kind === ReflectionKind.Function) {
-            if (reflection.parent && (reflection.parent.kind & reflections_1.ReflectionKind.FunctionOrMethod)) {
-                reflection.parent.flags.isExternal = external;
-            }
         };
         /**
          * Triggered when the converter has created a declaration reflection.
@@ -84,18 +69,14 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
          * @param node  The node that is currently processed if available.
          */
         InternalExternalPlugin.prototype.onSignature = function (context, reflection, node) {
-            if (!reflection.comment)
-                return;
-            // Look for @internal or @external
-            var comment = reflection.comment;
-            if (this.internals.some(function (tag) { return comment.hasTag(tag); })) {
-                InternalExternalPlugin_1.markSignatureAndMethod(reflection, false);
+            if (reflection.name === 'fooBarBaz') {
+                reflection.flags.isExternal = false;
+                reflection.parent.flags.isExternal = false;
+                console.log("===== ON SIGNATURE =====");
+                console.log(reflection.parent.toObject());
+                // console.log(reflection.toStringHierarchy(), reflection.comment && reflection.comment.toObject(), reflection.parent.comment && reflection.parent.comment.toObject());
             }
-            else if (this.externals.some(function (tag) { return comment.hasTag(tag); })) {
-                InternalExternalPlugin_1.markSignatureAndMethod(reflection, true);
-            }
-            this.internals.forEach(function (tag) { return CommentPlugin_1.CommentPlugin.removeTags(comment, tag); });
-            this.externals.forEach(function (tag) { return CommentPlugin_1.CommentPlugin.removeTags(comment, tag); });
+            // markSignatureAndMethod(reflection, isExternal(reflection.comment));
         };
         /**
          * Triggered when the converter has created a declaration reflection.
@@ -105,18 +86,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
          * @param node  The node that is currently processed if available.
          */
         InternalExternalPlugin.prototype.onDeclaration = function (context, reflection, node) {
-            if (!reflection.comment)
-                return;
-            // Look for @internal or @external
-            var comment = reflection.comment;
-            if (this.internals.some(function (tag) { return comment.hasTag(tag); })) {
-                reflection.flags.isExternal = false;
-            }
-            else if (this.externals.some(function (tag) { return comment.hasTag(tag); })) {
-                reflection.flags.isExternal = true;
-            }
-            this.internals.forEach(function (tag) { return CommentPlugin_1.CommentPlugin.removeTags(comment, tag); });
-            this.externals.forEach(function (tag) { return CommentPlugin_1.CommentPlugin.removeTags(comment, tag); });
+            reflection.flags.isExternal = isExternal(reflection.comment);
         };
         /**
          * Triggered when the converter has started loading a file.
@@ -134,24 +104,32 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
          * @param node  The node that is currently processed if available.
          */
         InternalExternalPlugin.prototype.onFileBegin = function (context, reflection, node) {
-            if (!node)
-                return;
-            // Look for @internal or @external
-            var comment = getRawComment_1.default(node);
-            var internalMatch = this.internalRegex.exec(comment);
-            var externalMatch = this.externalRegex.exec(comment);
-            if (internalMatch) {
-                context.isExternal = false;
-            }
-            else if (externalMatch) {
-                context.isExternal = true;
-            }
+            context.isExternal = isExternal(node && getRawComment_1.default(node));
         };
-        InternalExternalPlugin = InternalExternalPlugin_1 = __decorate([
+        InternalExternalPlugin = __decorate([
             components_1.Component({ name: 'internal-external' })
         ], InternalExternalPlugin);
         return InternalExternalPlugin;
-        var InternalExternalPlugin_1;
     }(components_1.ConverterComponent));
     exports.InternalExternalPlugin = InternalExternalPlugin;
+    function isExternal(comment) {
+        if (typeof comment === 'string') {
+            return comment.indexOf('@api public') === -1;
+        }
+        else if (comment && comment.hasTag('api')) {
+            var text = comment.getTag('api').text;
+            CommentPlugin_1.CommentPlugin.removeTags(comment, 'api');
+            return text.trim() !== 'public';
+        }
+        return true;
+    }
+    function markSignatureAndMethod(reflection, external) {
+        reflection.flags.isExternal = external;
+        // if (reflection.parent && (reflection.parent.kind === ReflectionKind.Method || reflection.parent.kind === ReflectionKind.Function) {
+        if (reflection.parent && (reflection.parent.kind & reflections_1.ReflectionKind.FunctionOrMethod)) {
+            if (reflection.parent.flags.isExternal === false)
+                return;
+            reflection.parent.flags.isExternal = external;
+        }
+    }
 });
